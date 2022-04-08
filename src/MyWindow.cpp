@@ -1,15 +1,17 @@
 #include "MyWindow.hpp"
+
 #include <cstdio>
 #include <cmath>
 #include <string>
 
-MyWindow::MyWindow()
+Mck::MyWindow::MyWindow()
     : m_btnColor(),
-      m_btnHi("Say something"),
+      m_btnStar("Say something"),
       m_btnQuit("Leave app"),
       m_lumLabel("Luminance"),
       m_hueLabel("Hue"),
-      m_color("#ff5500"),
+      //m_color("#ff5500"),
+      m_color(255, 127, 0),
       m_lumType(Luminance::BT_601)
 {
     set_title("First GTK4 app");
@@ -20,16 +22,16 @@ MyWindow::MyWindow()
     m_grid.set_row_spacing(20);
     set_child(m_grid);
 
-    m_btnColor.signal_color_activated().connect(sigc::mem_fun(*this, &MyWindow::on_button_color_opened));
-    m_btnColor.signal_color_set().connect(sigc::mem_fun(*this, &MyWindow::on_button_color_set));
-    m_btnColor.set_rgba(m_color);
+    m_btnColor.signal_color_activated().connect(sigc::mem_fun(*this, &Mck::MyWindow::on_button_color_opened));
+    m_btnColor.signal_color_set().connect(sigc::mem_fun(*this, &Mck::MyWindow::on_button_color_set));
+    m_btnColor.set_rgba(m_color.GetRGBA());
     m_grid.attach(m_btnColor, 0, 0, 2, 1);
 
-    m_btnHi.signal_clicked().connect(sigc::mem_fun(*this, &MyWindow::on_button_hi_clicked));
-    m_btnHi.set_icon_name("starred");
-    m_grid.attach(m_btnHi, 2, 0);
+    m_btnStar.signal_clicked().connect(sigc::mem_fun(*this, &Mck::MyWindow::on_button_star_clicked));
+    m_btnStar.set_icon_name("non-starred");
+    m_grid.attach(m_btnStar, 2, 0);
 
-    m_btnQuit.signal_clicked().connect(sigc::mem_fun(*this, &MyWindow::on_button_quit_clicked));
+    m_btnQuit.signal_clicked().connect(sigc::mem_fun(*this, &Mck::MyWindow::on_button_quit_clicked));
     m_btnQuit.set_icon_name("application-exit");
     m_grid.attach(m_btnQuit, 3, 0);
 
@@ -45,7 +47,7 @@ MyWindow::MyWindow()
         }
         m_lumBtns[i].set_active(i == static_cast<unsigned>(m_lumType));
         m_lumBtns[i].set_label(LuminanceModes[i]);
-        m_lumBtns[i].signal_toggled().connect(sigc::mem_fun(*this, &MyWindow::on_lum_switch_clicked));
+        m_lumBtns[i].signal_toggled().connect(sigc::mem_fun(*this, &Mck::MyWindow::on_lum_switch_clicked));
         m_lumBox.append(m_lumBtns[i]);
     }
     m_grid.attach(m_lumBox, 0, 1);
@@ -56,15 +58,23 @@ MyWindow::MyWindow()
     UpdateLabels();
 }
 
-void MyWindow::UpdateLabels()
+void Mck::MyWindow::UpdateLabels()
 {
     DisplayLuminance();
     DisplayHue();
+
+    std::string colHex = m_color.GetHex();
+
+    if (m_colors.contains(colHex)) {
+        m_btnStar.set_icon_name("starred");
+    } else {
+        m_btnStar.set_icon_name("non-starred");
+    }
 }
 
-void MyWindow::DisplayLuminance()
+void Mck::MyWindow::DisplayLuminance()
 {
-    auto ret = CalculateLuminance(m_color, m_lumType);
+    auto ret = CalculateLuminance(m_color.GetRGBA(), m_lumType);
     if (ret.has_value()) {
         double lum = std::round(ret.value() * 100.0 * 10.0) / 10.0;
         m_lumLabel.set_label(std::to_string(lum) + " %");
@@ -74,7 +84,7 @@ void MyWindow::DisplayLuminance()
 }
 
 
-std::optional<double> MyWindow::CalculateLuminance(const Gdk::RGBA &color, Luminance lumType)
+std::optional<double> Mck::MyWindow::CalculateLuminance(const Gdk::RGBA &color, Luminance lumType)
 {
     switch (lumType)
     {
@@ -94,7 +104,7 @@ std::optional<double> MyWindow::CalculateLuminance(const Gdk::RGBA &color, Lumin
 }
 
 // https://stackoverflow.com/a/13558570
-double MyWindow::CalculateSrgbLuminance(const Gdk::RGBA &color)
+double Mck::MyWindow::CalculateSrgbLuminance(const Gdk::RGBA &color)
 {
     // sRGB luminance(Y) values
     const double rY = 0.212655;
@@ -127,44 +137,37 @@ double MyWindow::CalculateSrgbLuminance(const Gdk::RGBA &color)
         bY * inv_gam_sRGB(color.get_blue()));
 }
 
-void MyWindow::DisplayHue()
+void Mck::MyWindow::DisplayHue()
 {
-    double r = m_color.get_red();
-    double g = m_color.get_green();
-    double b = m_color.get_blue();
-    double max = std::max({ r, g, b });
-    double min = std::min({ r, g, b });
-    double hue = 0.0;
-    if (r >= max) {
-        hue = (g-b)/(max-min);
-    } else if (g >= max) {
-        hue = 2.0 + (b-r)/(max-min);
-    } else {
-        hue = 4.0 + (r-g)/(max-min);
-    }
-    hue *= 60.0;
-
-    m_hueLabel.set_label(std::to_string(hue) + " deg");
+    m_hueLabel.set_label(std::to_string(m_color.GetHue()) + " deg");
 }
 
-void MyWindow::on_button_color_opened(const Gdk::RGBA &color)
+void Mck::MyWindow::on_button_color_opened(const Gdk::RGBA &color)
 {
 }
-void MyWindow::on_button_color_set()
+void Mck::MyWindow::on_button_color_set()
 {
-    m_color = m_btnColor.get_rgba();
-    std::printf("You chose a new color: %f - %f - %f\n", m_color.get_red(), m_color.get_green(), m_color.get_blue());
+    m_color = Color(m_btnColor.get_rgba());
+    std::printf("You chose a new color: %f - %f - %f\n", m_color.GetRed(), m_color.GetGreen(), m_color.GetBlue());
     UpdateLabels();
 }
-void MyWindow::on_button_hi_clicked()
+void Mck::MyWindow::on_button_star_clicked()
 {
-    std::printf("By the order of the Peaky Blinders!\n");
+    std::string colHex = m_color.GetHex();
+
+    if (m_colors.contains(colHex)) {
+        m_colors.erase(colHex);
+        m_btnStar.set_icon_name("non-starred");
+    } else {
+        m_colors[colHex] = m_color;
+        m_btnStar.set_icon_name("starred");
+    }
 }
-void MyWindow::on_button_quit_clicked()
+void Mck::MyWindow::on_button_quit_clicked()
 {
     close();
 }
-void MyWindow::on_lum_switch_clicked()
+void Mck::MyWindow::on_lum_switch_clicked()
 {
     for (unsigned i = 0; i < m_lumBtns.size(); i++)
     {
